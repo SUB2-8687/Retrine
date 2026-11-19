@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.0-beta.35](https://github.com/oneulddu/Retrine/compare/v1.0.0-beta.34...v1.0.0-beta.35) (2026-11-19)
+
+
+### Fixes
+
+* Pixie 진단 알림이 메인 스레드를 기다리지 않게 ([a4c11da](https://github.com/oneulddu/Retrine/commit/a4c11dafa408c5bcad25eaf66e37b1ced33c90e1))
+* 투어가 재시작으로 끝나도 번들 ID 안내 띄우기 ([1400b41](https://github.com/oneulddu/Retrine/commit/1400b41cd23480e99f09c3c318a6a4157c4f1732))
+
 ## [1.0.0-beta.34](https://github.com/oneulddu/Retrine/compare/v1.0.0-beta.33...v1.0.0-beta.34) (2026-11-19)
 
 
