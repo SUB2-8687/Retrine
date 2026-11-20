@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0-beta.37](https://github.com/oneulddu/Retrine/compare/v1.0.0-beta.36...v1.0.0-beta.37) (2026-11-20)
+
+
+### Features
+
+* Pixie를 빌드 기본값으로 포함 ([3756c61](https://github.com/oneulddu/Retrine/commit/3756c61e60ca5dafc1b25be47fe6dbedd6e93a23))
+
 ## [1.0.0-beta.36](https://github.com/oneulddu/Retrine/compare/v1.0.0-beta.35...v1.0.0-beta.36) (2026-11-20)
 
 
