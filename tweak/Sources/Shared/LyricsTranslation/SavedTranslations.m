@@ -373,7 +373,7 @@ SGModRow *SGSavedTranslationsRow(void) {
     dispatch_once(&once, ^{ dispatch_async(writes(), ^{ refreshSummary(); }); });
     return SGStatActionRow(SGL(@"settings.translation.savedtranslations.title", @"Saved translations"), SGL(@"settings.translation.savedtranslations.aisubtitle", @"Saved translations, pronunciations and cultural notes"),
                            ^NSString *{ return sg_savedSummary; }, ^{
-        SGShowPage(SGTopController(), SGSavedTranslationsPage());
+        SGShowPageBuilt(SGTopController(), ^UIViewController *{ return SGSavedTranslationsPage(); });
     });
 }
 

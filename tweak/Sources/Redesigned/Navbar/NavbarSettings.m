@@ -936,7 +936,7 @@ typedef NS_ENUM(NSInteger, SGRNavbarSection) {
             break;
         }
         case SGRNavbarSectionSplit:
-            [self.navigationController pushViewController:[SGRSplitTabsPage new] animated:YES];
+            SGPushPageBuilt(self.navigationController, ^UIViewController *{ return [SGRSplitTabsPage new]; });
             break;
     }
 }

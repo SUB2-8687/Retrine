@@ -1,4 +1,5 @@
 #import "Core/SGCore.h"
+#import "Core/SGLocalize.h"
 #import "Settings/SGPageStyle.h"
 #import "About.h"
 #import "App/Onboarding/Onboarding.h"
@@ -79,7 +80,19 @@ UIViewController *SGAboutPage(void) {
         @[SGL(@"settings.mod.language.system", @"System"),
           SGL(@"settings.mod.language.english", @"English"),
           SGL(@"settings.mod.language.korean", @"한국어")], 0);
-    language.choiceFooter = SGL(@"settings.mod.language.footer", @"Applies after you restart Spotify.");
+    language.choiceFooter = SGL(@"settings.mod.language.footer", @"When you change the language, it takes effect immediately. You do not need to restart the app.");
+    __block BOOL languageChanged = NO;
+    language.chosen = ^(NSInteger index) { languageChanged = SGSetLanguageChoice(index); };
+    language.chosenAfterDismiss = ^(NSInteger index) {
+        if (!languageChanged) return;
+        SGModPage *aboutPage = owner;
+        UINavigationController *navigation = aboutPage.navigationController;
+        if (!navigation) return;
+        // The choice is already stored and SGLocalize has loaded its new table. Every page on the stack that
+        // knows how it was built (the settings root, About and each page between or after them) is built again
+        // in the new language, in place and without animation, so no screen waits for a restart.
+        SGRebuildPagesForLanguage(navigation);
+    };
     SGModRow *reset = SGWithSymbol(SGActionRow(SGL(@"settings.mod.reset.title", @"Reset all settings"), nil, ^{ confirmReset(); }), @"trash");
     reset.color = SGRed();
     // Reset all removes the settings; the keys live in the Keychain, which it leaves alone, so this takes them.

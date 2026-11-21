@@ -302,7 +302,7 @@ typedef NS_ENUM(NSInteger, SGNavbarSection) {
             [weakSelf reload];
         });
     } else if (path.section == SGNavbarSectionSplit) {
-        [self.navigationController pushViewController:[SGSplitTabsPage new] animated:YES];
+        SGPushPageBuilt(self.navigationController, ^UIViewController *{ return [SGSplitTabsPage new]; });
     } else if (path.section == SGNavbarSectionReset) {
         [self reset];
     }

@@ -1,5 +1,7 @@
 #import "SGLocalize.h"
 
+NSNotificationName const SGLanguageDidChangeNotification = @"com.retrine.localization.didChange";
+
 static NSString *const kBundleName = @"Retrine.bundle";
 
 static NSBundle *resourceBundle(void) {
@@ -92,28 +94,71 @@ static NSDictionary<NSNumber *, NSString *> *specifiers(NSString *format) {
 
 static NSString *sg_language = @"en";
 static NSDictionary<NSString *, NSString *> *sg_table;
+static NSInteger sg_loadedChoice;
+static BOOL sg_loaded;
+// The choice the observers were last told about. SGSetInt posts NSUserDefaultsDidChangeNotification before
+// SGSetLanguageChoice runs, and an observer's SGL call may load the new table first; this keeps that from hiding the change.
+static NSInteger sg_announcedChoice;
+static BOOL sg_announced;
+
+static NSRecursiveLock *localizationLock(void) {
+    static NSRecursiveLock *lock;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ lock = [NSRecursiveLock new]; });
+    return lock;
+}
 
 static void load(void) {
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        NSBundle *bundle = resourceBundle();
-        if (!bundle) return;
-        NSInteger choice = [NSUserDefaults.standardUserDefaults integerForKey:SGKeyLanguage];
-        NSString *wanted = choice == 1 ? @"en" : choice == 2 ? @"ko" : appLanguage();
-        NSString *language = matchLanguage(wanted, bundle.localizations);
-        if ([language isEqualToString:@"en"]) return;
+    NSRecursiveLock *lock = localizationLock();
+    [lock lock];
+    NSInteger choice = [NSUserDefaults.standardUserDefaults integerForKey:SGKeyLanguage];
+    if (sg_loaded && choice == sg_loadedChoice) { [lock unlock]; return; }
+
+    NSBundle *bundle = resourceBundle();
+    NSString *wanted = choice == 1 ? @"en" : choice == 2 ? @"ko" : appLanguage();
+    NSString *language = bundle ? matchLanguage(wanted, bundle.localizations) : @"en";
+    NSMutableDictionary<NSString *, NSString *> *table = [NSMutableDictionary dictionary];
+    if (![language isEqualToString:@"en"]) {
         NSString *path = [bundle pathForResource:@"Localizable" ofType:@"strings" inDirectory:nil forLocalization:language];
-        NSDictionary *table = path ? [NSDictionary dictionaryWithContentsOfFile:path] : nil;
-        if (![table isKindOfClass:NSDictionary.class] || !table.count) return;
-        sg_table = table;
-        sg_language = language;
-    });
+        NSDictionary *part = path ? [NSDictionary dictionaryWithContentsOfFile:path] : nil;
+        if ([part isKindOfClass:NSDictionary.class]) [table addEntriesFromDictionary:part];
+    }
+    sg_table = table.count ? [table copy] : nil;
+    sg_language = table.count ? language : @"en";
+    sg_loadedChoice = choice;
+    sg_loaded = YES;
+    if (!sg_announced) { sg_announcedChoice = choice; sg_announced = YES; }
+    [lock unlock];
+}
+
+BOOL SGSetLanguageChoice(NSInteger choice) {
+    if (choice < 0 || choice > 2) choice = 0;
+    NSRecursiveLock *lock = localizationLock();
+    [lock lock];
+    // Loaded first, so a first call announces against the choice that was in force before this one.
+    if (!sg_loaded) load();
+    [NSUserDefaults.standardUserDefaults setInteger:choice forKey:SGKeyLanguage];
+    load();
+    BOOL changed = sg_announcedChoice != choice;
+    if (changed) sg_announcedChoice = choice;
+    [lock unlock];
+    if (changed) {
+        // UI observers must run on the main thread; the table is ready before the notification is delivered.
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [NSNotificationCenter.defaultCenter postNotificationName:SGLanguageDidChangeNotification object:nil];
+        });
+    }
+    return changed;
 }
 
 NSString *SGL(NSString *key, NSString *english) {
     load();
-    if (!sg_table || !key) return english;
-    id text = sg_table[key];
+    if (!key) return english;
+    NSRecursiveLock *lock = localizationLock();
+    [lock lock];
+    id value = sg_table[key];
+    NSString *text = [value isKindOfClass:NSString.class] ? [value copy] : nil;
+    [lock unlock];
     if (![text isKindOfClass:NSString.class] || ![text length]) return english;
     if ([english rangeOfString:@"%"].location != NSNotFound || [text rangeOfString:@"%"].location != NSNotFound) {
         NSDictionary *wanted = specifiers(english), *read = specifiers(text);
@@ -124,5 +169,9 @@ NSString *SGL(NSString *key, NSString *english) {
 
 NSString *SGLanguage(void) {
     load();
-    return sg_language;
+    NSRecursiveLock *lock = localizationLock();
+    [lock lock];
+    NSString *language = [sg_language copy];
+    [lock unlock];
+    return language;
 }

@@ -432,7 +432,7 @@ typedef NS_ENUM(NSInteger, SGFontSection) { SGFontBuiltIn, SGFontMore, SGFontFre
         [NSUserDefaults.standardUserDefaults setObject:_free[(NSUInteger)path.row].identifier forKey:SGKeyAppFontLibrary];
         SGSetInt(SGKeyAppFont, SGAppFontLibrary);
     } else if (path.section == SGFontFree) {
-        SGShowPage(self, SGFontLibraryPage());
+        SGShowPageBuilt(self, ^UIViewController *{ return SGFontLibraryPage(); });
         return;
     } else if (path.row == 0 && importedFamily().length) {
         SGSetInt(SGKeyAppFont, SGAppFontCustom);

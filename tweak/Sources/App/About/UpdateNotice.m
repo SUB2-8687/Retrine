@@ -67,7 +67,7 @@ static void offerWhenClear(NSInteger tries) {
     [sheet addAction:[UIAlertAction actionWithTitle:SGL(@"settings.mod.update.notice.action.whats_new", @"What's new") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         // The sheet is still going as this runs, so the page waits for the screen it is pushed onto.
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            SGShowPage(SGTopController(), SGUpdatePage());
+            SGShowPageBuilt(SGTopController(), ^UIViewController *{ return SGUpdatePage(); });
         });
     }]];
     if (release.url.length)

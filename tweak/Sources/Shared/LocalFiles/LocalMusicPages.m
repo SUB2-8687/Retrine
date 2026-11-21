@@ -2,6 +2,7 @@
 #import "LocalMusicStore.h"
 #import "LocalFiles.h"
 #import "Core/SGLocalize.h"
+#import "Settings/SGPage.h"
 #import "Settings/SGPageStyle.h"
 #import "LocalMusicShelf.h"
 #import "LocalMusicPlayback.h"
@@ -296,8 +297,9 @@ static UIColor *coverColour(UIImage *image) {
     cell.contentConfiguration = content;
 }
 - (void)openGroup:(SGLocalMusicGroup *)group kind:(NSString *)kind {
-    SGLocalMusicPage *page = [[SGLocalMusicPage alloc] initWithIndex:_live ? nil : _index kind:kind key:group.key];
-    SGShowPage(self, page);
+    SGLocalMusicIndex *index = _live ? nil : _index;
+    NSArray<NSString *> *key = group.key;
+    SGShowPageBuilt(self, ^UIViewController *{ return [[SGLocalMusicPage alloc] initWithIndex:index kind:kind key:key]; });
 }
 - (void)showPlaybackError:(NSError *)error {
     if (error) SGPresentInformation(self, SGLocalMusicFailureMessage(error), nil);

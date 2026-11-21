@@ -1,6 +1,7 @@
 #import "SGPage.h"
 #import "SGPageStyle.h"
 #import "Core/SGCore.h"
+#import <objc/runtime.h>
 
 
 // Spotify's navigation controller asserts that everything on its stack is one of its own pages
@@ -91,6 +92,50 @@ void SGRegisterPages(void) {
     Protocol *page = objc_getProtocol("_TtP19Tome_PageAttributes17SPTPageController_") ?: objc_getProtocol("SPTPageController");
     sg_pagesConform = page && class_addProtocol(SGPage.class, page);
     if (!sg_pagesConform) SGLog(@"SPTPageController not found, the mod's pages are presented instead of pushed");
+}
+
+static const void *kRebuildKey = &kRebuildKey;
+
+void SGSetPageRebuild(UIViewController *page, UIViewController *(^rebuild)(void)) {
+    objc_setAssociatedObject(page, kRebuildKey, rebuild, OBJC_ASSOCIATION_COPY_NONATOMIC);
+}
+
+void SGShowPageBuilt(UIViewController *owner, UIViewController *(^build)(void)) {
+    UIViewController *page = build();
+    SGSetPageRebuild(page, build);
+    SGShowPage(owner, page);
+}
+
+void SGPushPageBuilt(UINavigationController *navigation, UIViewController *(^build)(void)) {
+    UIViewController *page = build();
+    SGSetPageRebuild(page, build);
+    [navigation pushViewController:page animated:YES];
+}
+
+void SGRebuildPagesForLanguage(UINavigationController *navigation) {
+    if (!navigation) return;
+    NSMutableArray<UIViewController *> *pages = [navigation.viewControllers mutableCopy];
+    BOOL replaced = NO;
+    for (NSUInteger i = 0; i < pages.count; i++) {
+        UIViewController *old = pages[i];
+        UIViewController *(^rebuild)(void) = objc_getAssociatedObject(old, kRebuildKey);
+        // A page that already re-reads its words when the language changes keeps what the person typed into it.
+        if (!rebuild || [old respondsToSelector:@selector(languageDidChange:)]) continue;
+        UIViewController *fresh = rebuild();
+        if (!fresh) continue;
+        SGSetPageRebuild(fresh, rebuild);
+        CGPoint offset = CGPointZero;
+        BOOL keepsOffset = [old isKindOfClass:UITableViewController.class] && old.isViewLoaded;
+        if (keepsOffset) offset = ((UITableViewController *)old).tableView.contentOffset;
+        pages[i] = fresh;
+        replaced = YES;
+        if (keepsOffset && [fresh isKindOfClass:UITableViewController.class]) {
+            UITableView *table = ((UITableViewController *)fresh).tableView;
+            CGPoint kept = offset;
+            dispatch_async(dispatch_get_main_queue(), ^{ [table setContentOffset:kept animated:NO]; });
+        }
+    }
+    if (replaced) [navigation setViewControllers:pages animated:NO];
 }
 
 void SGShowPage(UIViewController *owner, UIViewController *page) {
