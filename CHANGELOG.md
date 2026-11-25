@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1-beta.6](https://github.com/oneulddu/Retrine/compare/v1.0.1-beta.5...v1.0.1-beta.6) (2026-11-25)
+
+
+### Fixes
+
+* 잠금 화면 가사 클립의 불필요한 인코딩 줄이기 ([1a2e1fd](https://github.com/oneulddu/Retrine/commit/1a2e1fd73d19b495710a699eb82653837b05d992))
+
 ## [1.0.1-beta.5](https://github.com/oneulddu/Retrine/compare/v1.0.1-beta.4...v1.0.1-beta.5) (2026-11-25)
 
 
