@@ -1,5 +1,6 @@
 #pragma once
 #import <UIKit/UIKit.h>
+#import "RetrineStyle.h"
 
 // Shared with the artist release sheet: one native material and the same rows.
 static inline UIVisualEffectView *SAPArtistListMaterial(void) {
@@ -12,7 +13,9 @@ static inline void SAPApplyArtistListRowBackground(UITableViewCell *cell) {
     UIBackgroundConfiguration *background;
     if(@available(iOS 16.0,*))background=[cell defaultBackgroundConfiguration];
     else background=[UIBackgroundConfiguration listGroupedCellConfiguration];
-    background.backgroundColor=[UIColor colorWithWhite:1 alpha:0.1008];
+    // Retrine's card colour when its style is loaded; the translucent white of the sheet otherwise.
+    UIColor *card=SAPRetrineStyleLoaded()?SAPStyleCard():nil;
+    background.backgroundColor=card?:[UIColor colorWithWhite:1 alpha:0.1008];
     background.backgroundColorTransformer=nil; background.visualEffect=nil;
     cell.backgroundColor=UIColor.clearColor;cell.backgroundConfiguration=background;
 }

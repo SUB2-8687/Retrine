@@ -12,6 +12,7 @@
 #import "Core/SGDataRoot.h"
 #import "Settings/SGPageStyle.h"
 #import "Settings/SGModPage.h"
+#import "Settings/SGPage.h"
 #import "About.h"
 #import "ReportFolder.h"
 
@@ -622,7 +623,7 @@ enum { SGReportSectionText, SGReportSectionActions, SGReportSectionList, SGRepor
         if (!page->_deleted) [self.navigationController popToViewController:page animated:YES];
         return;
     }
-    [self.navigationController pushViewController:[[SGReportPage alloc] initWithReport:identifier] animated:YES];
+    SGPushPageBuilt(self.navigationController, ^UIViewController *{ return [[SGReportPage alloc] initWithReport:identifier]; });
 }
 
 // ---- the table ----

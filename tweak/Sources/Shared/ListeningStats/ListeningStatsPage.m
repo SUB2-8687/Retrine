@@ -9,6 +9,7 @@
 #import <QuartzCore/QuartzCore.h>
 #import "Core/SGCore.h"
 #import "Settings/SGModPage.h"
+#import "Settings/SGPage.h"
 #import "Settings/SGPageStyle.h"
 #import "ListeningStats.h"
 #import "ListeningStatsStyle.h"
@@ -604,7 +605,8 @@ static UIButton *stepButton(NSString *symbol) {
     UIButton *heading = [UIButton buttonWithConfiguration:look primaryAction:[UIAction actionWithHandler:^(UIAction *action) {
         SGListeningPage *page = weakSelf;
         if (!page.statsShown) return;
-        [page.navigationController pushViewController:SGTopChartPage((SGChartKind)kind, page.statsKind, page.statsShown.startDate, page.statsTitle) animated:YES];
+        SGChartKind chart = (SGChartKind)kind; SGStatsPeriod statsKind = page.statsKind; NSDate *start = page.statsShown.startDate; NSString *title = page.statsTitle;
+        SGPushPageBuilt(page.navigationController, ^UIViewController *{ return SGTopChartPage(chart, statsKind, start, title); });
     }]];
     heading.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeading;
     heading.contentVerticalAlignment = UIControlContentVerticalAlignmentBottom;

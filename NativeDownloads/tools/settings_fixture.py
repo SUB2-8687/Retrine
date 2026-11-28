@@ -10,7 +10,7 @@ def fixture_includes(out):
 
 SOURCES = [ROOT / name for name in (
     "tests/admitted_host.c", "src/UI/PixieManagerSettings.m", "src/UI/PixiePageController.m",
-    "src/UI/Localization.m", "src/Diagnostics/DiagnosticsPreferences.m",
+    "src/UI/Localization.m", "src/UI/RetrineStyle.m", "src/Diagnostics/DiagnosticsPreferences.m",
     "src/Diagnostics/DiagnosticTrace.m", "src/Diagnostics/NativeKeyTrace.m",
     "src/Spotify/WireProto.m", "tests/trace_platform_stub.m", "tests/SettingsFixtureActions.m",
 )]

@@ -1,4 +1,5 @@
 #import "Core/SGCore.h"
+#import "Core/SGLocalize.h"
 #import "Settings/SGPageStyle.h"
 #import "About.h"
 #import "App/Onboarding/Onboarding.h"
@@ -92,23 +93,32 @@ static void confirmClearKeychain(void) {
     [SGTopController() presentViewController:alert animated:YES completion:nil];
 }
 
-static void showStorageAction(SGModPage *page, NSString *title) {
-    [page revealRowTitled:title];
-    SGShowPage(SGTopController(), page);
+// The page is built by a block the language switch can run again, so it is rebuilt in the new language while it is
+// open. The row is lit only the first time the page is built.
+static void showStorageAction(UIViewController *(^build)(void), NSString *title) {
+    __block BOOL first = YES;
+    SGShowPageBuilt(SGTopController(), ^UIViewController *{
+        UIViewController *page = build();
+        if (first) [(SGModPage *)page revealRowTitled:title];
+        first = NO;
+        return page;
+    });
 }
 
 static UIViewController *storagePage(void) {
     SGModRow *cacheLimit = SGSwitchRow(SGL(@"settings.mod.storage.limit", @"Show cache size limit"), SGRestartNote, SGKeyShowCacheLimit);
     SGModRow *storage = SGActionRow(SGL(@"settings.mod.storage.open", @"Open Spotify storage settings"), nil, ^{
+        // Native/Settings/StorageSettings.x sets the page this opens in Retrine's type from its first frame.
+        [NSNotificationCenter.defaultCenter postNotificationName:@"SGStoragePageRequested" object:nil];
         SGOpenSpotifyURI([NSURL URLWithString:@"spotify:config:storage"]);
     });
     storage.searchIdentifier = @"action.spotifyStorage";
     SGModRow *lyrics = SGDeleteSavedLyricsRow(^{
-        showStorageAction((SGModPage *)SGLyricsSettingsPage(), SGL(@"settings.lyrics.offline.delete", @"Delete saved lyrics"));
+        showStorageAction(^UIViewController *{ return SGLyricsSettingsPage(); }, SGL(@"settings.lyrics.offline.delete", @"Delete saved lyrics"));
     });
     NSString *erase = SGL(@"settings.stats.action.erase", @"Erase listening history");
     SGModRow *history = SGActionRow(erase, nil, ^{
-        showStorageAction((SGModPage *)SGListeningStatsPage(), erase);
+        showStorageAction(^UIViewController *{ return SGListeningStatsPage(); }, erase);
     });
     return [[SGModPage alloc] initWithTitle:SGL(@"settings.mod.storage.title", @"Storage") intro:nil sections:@[
         SGNotedSection(@"Spotify", @[cacheLimit, storage],
@@ -124,7 +134,19 @@ UIViewController *SGAboutPage(void) {
         @[SGL(@"settings.mod.language.system", @"System"),
           SGL(@"settings.mod.language.english", @"English"),
           SGL(@"settings.mod.language.korean", @"한국어")], 0);
-    language.choiceFooter = SGL(@"settings.mod.language.footer", @"Applies after you restart Spotify.");
+    language.choiceFooter = SGL(@"settings.mod.language.footer", @"When you change the language, it takes effect immediately. You do not need to restart the app.");
+    __block BOOL languageChanged = NO;
+    language.chosen = ^(NSInteger index) { languageChanged = SGSetLanguageChoice(index); };
+    language.chosenAfterDismiss = ^(NSInteger index) {
+        if (!languageChanged) return;
+        SGModPage *aboutPage = owner;
+        UINavigationController *navigation = aboutPage.navigationController;
+        if (!navigation) return;
+        // The choice is already stored and SGLocalize has loaded its new table. Every page on the stack that
+        // knows how it was built (the settings root, About and each page between or after them) is built again
+        // in the new language, in place and without animation, so no screen waits for a restart.
+        SGRebuildPagesForLanguage(navigation);
+    };
     SGModRow *reset = SGWithSymbol(SGActionRow(SGL(@"settings.mod.reset.title", @"Reset all settings"), nil, ^{ confirmReset(); }), @"trash");
     reset.color = SGRed();
     // Reset all removes the settings; the keys live in the Keychain, which it leaves alone, so this takes them.

@@ -13,6 +13,7 @@
 #import "DiagnosticTrace.h"
 #import "../UI/ArtistDownloadComponents.h"
 #import "../UI/ArtistListAppearance.h"
+#import "../UI/RetrineStyle.h"
 #import "PixiePageController.h"
 #import "PixiePageNavigation.h"
 #import <QuartzCore/QuartzCore.h>
@@ -410,10 +411,11 @@ static NSString *SAPOfflineReleaseKey(NSDictionary *row) {
 - (instancetype)init {return [super initWithStyle:UITableViewStyleInsetGrouped];}
 - (void)viewDidLoad {
     [super viewDidLoad];self.overrideUserInterfaceStyle=UIUserInterfaceStyleDark;
-    self.tableView.backgroundColor=UIColor.blackColor;self.tableView.rowHeight=UITableViewAutomaticDimension;self.tableView.estimatedRowHeight=76;
+    UIColor *page=SAPRetrineStyleLoaded()?SAPStylePage():nil;
+    self.tableView.backgroundColor=page?:UIColor.blackColor;self.tableView.rowHeight=UITableViewAutomaticDimension;self.tableView.estimatedRowHeight=76;
     self.tableView.sectionHeaderHeight=UITableViewAutomaticDimension;self.tableView.estimatedSectionHeaderHeight=52;
     if(@available(iOS 16.0,*))self.tableView.selfSizingInvalidation=UITableViewSelfSizingInvalidationEnabled;
-    self.loadingBackground=[UIView new];self.loadingBackground.backgroundColor=UIColor.blackColor;self.tableView.backgroundView=self.loadingBackground;
+    self.loadingBackground=[UIView new];self.loadingBackground.backgroundColor=page?:UIColor.blackColor;self.tableView.backgroundView=self.loadingBackground;
     self.bottomChrome=SAPOfflineLibraryChrome.new;__weak typeof(self) weakSelf=self;
     self.bottomChrome.changed=^{[weakSelf updateBottomControls];};
     self.baseBottomInset=self.appliedBottomInset=self.tableView.contentInset.bottom;
@@ -424,6 +426,7 @@ static NSString *SAPOfflineReleaseKey(NSDictionary *row) {
     if(@available(iOS 15.0,*))self.exportToolbar.scrollEdgeAppearance=appearance;
     self.loadingLabel=[UILabel new];self.loadingLabel.numberOfLines=0;self.loadingLabel.textAlignment=NSTextAlignmentCenter;
     self.loadingLabel.textColor=UIColor.secondaryLabelColor;self.loadingLabel.font=[UIFont preferredFontForTextStyle:UIFontTextStyleBody];self.loadingLabel.adjustsFontForContentSizeCategory=YES;
+    if(SAPRetrineStyleLoaded()){if(SAPStyleTitleFont())self.loadingLabel.font=SAPStyleTitleFont();if(SAPStyleGrey())self.loadingLabel.textColor=SAPStyleGrey();}
     self.loadingSpinner=[[UIActivityIndicatorView alloc]initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];self.loadingSpinner.hidesWhenStopped=YES;
     UIStackView *loading=[[UIStackView alloc]initWithArrangedSubviews:@[self.loadingLabel,self.loadingSpinner]];
     loading.axis=UILayoutConstraintAxisVertical;loading.alignment=UIStackViewAlignmentCenter;loading.spacing=12;loading.translatesAutoresizingMaskIntoConstraints=NO;
@@ -623,7 +626,7 @@ static NSString *SAPOfflineReleaseKey(NSDictionary *row) {
         for(UILabel *label in @[self.progressTitle,self.progressDetail]) {
             label.translatesAutoresizingMaskIntoConstraints=NO;[label setContentCompressionResistancePriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
         }
-        self.progressBar=[[UIProgressView alloc]initWithProgressViewStyle:UIProgressViewStyleDefault];self.progressBar.progressTintColor=UIColor.systemGreenColor;self.progressBar.translatesAutoresizingMaskIntoConstraints=NO;
+        self.progressBar=[[UIProgressView alloc]initWithProgressViewStyle:UIProgressViewStyleDefault];self.progressBar.progressTintColor=SAPArtistAccent();self.progressBar.translatesAutoresizingMaskIntoConstraints=NO;
         self.progressAction=[UIButton buttonWithType:UIButtonTypeSystem];self.progressAction.translatesAutoresizingMaskIntoConstraints=NO;
         UIButtonConfiguration *button=[UIButtonConfiguration filledButtonConfiguration];button.buttonSize=UIButtonConfigurationSizeSmall;button.baseForegroundColor=UIColor.whiteColor;button.baseBackgroundColor=UIColor.systemGray4Color;button.cornerStyle=UIButtonConfigurationCornerStyleCapsule;
         button.contentInsets=NSDirectionalEdgeInsetsMake(5,10,5,10);
@@ -795,6 +798,7 @@ static NSString *SAPOfflineReleaseKey(NSDictionary *row) {
         content.image=artist?[UIImage systemImageNamed:@"person.crop.circle.fill"]:SAPArtistArtworkPlaceholder();
         content.imageProperties.maximumSize=CGSizeMake(52,52);content.imageProperties.reservedLayoutSize=CGSizeMake(52,52);content.imageProperties.cornerRadius=artist?26:8;
         content.textProperties.numberOfLines=0;content.secondaryTextProperties.numberOfLines=0;
+        SAPApplyRetrineRowText(content);
     }
     content.text=title;content.secondaryText=subtitle;cell.contentConfiguration=content;SAPApplyArtistListRowBackground(cell);
     [self configureIndicator:cell rows:rows];
@@ -811,14 +815,14 @@ static NSString *SAPOfflineReleaseKey(NSDictionary *row) {
     if(![cell isKindOfClass:SAPOfflineArtworkCell.class])return;
     BOOL selected=rows.count>0 && SAPOfflineLibrarySelection(rows,self.state.selectedURIs,YES).count==rows.count;
     NSString *symbol=nil,*label=nil;UIColor *color=UIColor.secondaryLabelColor;
-    if(self.state.selecting){symbol=selected?@"checkmark.circle.fill":@"circle";label=selected?SAPL(@"settings.pixie.selection.selected",@"Selected"):SAPL(@"settings.pixie.selection.not_selected",@"Not selected");if(selected)color=UIColor.systemGreenColor;}
+    if(self.state.selecting){symbol=selected?@"checkmark.circle.fill":@"circle";label=selected?SAPL(@"settings.pixie.selection.selected",@"Selected"):SAPL(@"settings.pixie.selection.not_selected",@"Not selected");if(selected)color=SAPArtistAccent();}
     else if(self.level<2){symbol=@"chevron.right";label=SAPL(@"settings.pixie.ui.open",@"Open");}
     else {
         NSString *status=[self.state.progressModel stateForTrackURI:rows.firstObject[@"uri"]];
         if([status isEqual:@"queued"]){symbol=@"clock";label=SAPL(@"settings.pixie.export.queued",@"Queued for export");}
-        else if([status isEqual:@"preparing"]){symbol=@"arrow.up.circle";label=SAPL(@"settings.pixie.export.preparing_short",@"Preparing export");color=UIColor.systemGreenColor;}
-        else if([status isEqual:@"converting"]){symbol=@"arrow.triangle.2.circlepath";label=SAPL(@"settings.pixie.export.converting",@"Converting to M4A");color=UIColor.systemGreenColor;}
-        else if([status isEqual:@"prepared"]){symbol=@"checkmark.circle";label=SAPL(@"settings.pixie.export.prepared",@"Prepared");color=UIColor.systemGreenColor;}
+        else if([status isEqual:@"preparing"]){symbol=@"arrow.up.circle";label=SAPL(@"settings.pixie.export.preparing_short",@"Preparing export");color=SAPArtistAccent();}
+        else if([status isEqual:@"converting"]){symbol=@"arrow.triangle.2.circlepath";label=SAPL(@"settings.pixie.export.converting",@"Converting to M4A");color=SAPArtistAccent();}
+        else if([status isEqual:@"prepared"]){symbol=@"checkmark.circle";label=SAPL(@"settings.pixie.export.prepared",@"Prepared");color=SAPArtistAccent();}
         else if([status isEqual:@"failed"]){symbol=@"exclamationmark.circle";label=SAPL(@"settings.pixie.export.failed",@"Export failed");color=UIColor.systemRedColor;}
         else if([status isEqual:@"cancelled"]){symbol=@"stop.circle";label=SAPL(@"settings.pixie.export.cancelled",@"Export cancelled");color=UIColor.systemOrangeColor;}
         else if([status isEqual:@"not_exported"]){symbol=@"minus.circle";label=SAPL(@"settings.pixie.export.not_exported",@"Not exported");}

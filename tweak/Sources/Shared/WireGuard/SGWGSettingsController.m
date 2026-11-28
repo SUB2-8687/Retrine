@@ -44,7 +44,26 @@ typedef NS_ENUM(NSInteger, WGCheckRow) { WGCheckCountry, WGCheckConnection, WGCh
 }
 
 - (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:self name:SGLanguageDidChangeNotification object:nil];
     [self.session invalidateAndCancel];
+}
+
+- (void)languageDidChange:(NSNotification *)notification {
+    // Re-resolve every visible string from the newly loaded table without recreating the controller.
+    self.title = SGL(@"settings.wireguard.title", @"In-app WireGuard / Proxy");
+    self.userField.attributedPlaceholder = [[NSAttributedString alloc]
+        initWithString:SGL(@"settings.wireguard.optional", @"optional")
+        attributes:@{NSForegroundColorAttributeName: SGGrey(), NSFontAttributeName: self.userField.font ?: SGCappedFont(SGTitleFont(), 22)}];
+    self.passField.attributedPlaceholder = [[NSAttributedString alloc]
+        initWithString:SGWGHasStoredProxyPassword()
+            ? SGL(@"settings.wireguard.password_saved", @"saved (leave empty to keep)")
+            : SGL(@"settings.wireguard.optional", @"optional")
+        attributes:@{NSForegroundColorAttributeName: SGGrey(), NSFontAttributeName: self.passField.font ?: SGCappedFont(SGTitleFont(), 22)}];
+    self.userField.accessibilityLabel = SGL(@"settings.wireguard.optional", @"optional");
+    self.passField.accessibilityLabel = SGWGHasStoredProxyPassword()
+        ? SGL(@"settings.wireguard.password_saved", @"saved (leave empty to keep)")
+        : SGL(@"settings.wireguard.optional", @"optional");
+    [self reloadState];
 }
 
 - (void)viewDidLoad {
@@ -72,6 +91,8 @@ typedef NS_ENUM(NSInteger, WGCheckRow) { WGCheckCountry, WGCheckConnection, WGCh
     self.tableView.keyboardDismissMode = UIScrollViewKeyboardDismissModeOnDrag;
     self.tableView.rowHeight = UITableViewAutomaticDimension;
     self.tableView.estimatedRowHeight = 56;
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(languageDidChange:)
+                                               name:SGLanguageDidChangeNotification object:nil];
     [self reloadState];
 }
 

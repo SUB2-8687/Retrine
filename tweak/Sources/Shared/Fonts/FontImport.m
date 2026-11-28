@@ -601,7 +601,7 @@ typedef NS_ENUM(NSInteger, SGFontSection) { SGFontBuiltIn, SGFontMore, SGFontFre
         [NSUserDefaults.standardUserDefaults setObject:_free[(NSUInteger)path.row].identifier forKey:SGKeyAppFontLibrary];
         SGSetInt(SGKeyAppFont, SGAppFontLibrary);
     } else if (path.section == SGFontFree) {
-        SGShowPage(self, self.sg_searchPageRows.firstObject.page());
+        SGShowPageBuilt(self, self.sg_searchPageRows.firstObject.page);
         return;
     } else if (path.row == 0 && _displayedImport) {
         SGSetInt(SGKeyAppFont, SGAppFontCustom);

@@ -83,10 +83,12 @@ static void SAPAfterDialogDismissal(UIAlertController *dialog,dispatch_block_t c
     self.retryControl=[[UIBarButtonItem alloc]initWithTitle:SAPL(@"settings.lyricstools.status.retry",@"Retry") style:UIBarButtonItemStylePlain target:self action:@selector(loadCatalog)];self.toolbarSpace=[UIBarButtonItem flexibleSpaceItem];
     self.loadingLabel=[UILabel new];self.loadingLabel.numberOfLines=0;self.loadingLabel.textAlignment=NSTextAlignmentCenter;self.loadingLabel.textColor=UIColor.secondaryLabelColor;
     self.loadingLabel.font=[UIFont preferredFontForTextStyle:UIFontTextStyleBody];self.loadingLabel.adjustsFontForContentSizeCategory=YES;
+    if(SAPRetrineStyleLoaded()){if(SAPStyleTitleFont())self.loadingLabel.font=SAPStyleTitleFont();if(SAPStyleGrey())self.loadingLabel.textColor=SAPStyleGrey();}
     self.loadingContainer=[UIView new];self.loadingSpinner=[[UIActivityIndicatorView alloc]initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];self.loadingSpinner.color=UIColor.whiteColor;self.loadingSpinner.hidesWhenStopped=YES;
     UIStackView *loadingStack=[[UIStackView alloc]initWithArrangedSubviews:@[self.loadingLabel,self.loadingSpinner]];loadingStack.axis=UILayoutConstraintAxisVertical;loadingStack.alignment=UIStackViewAlignmentCenter;loadingStack.spacing=12;loadingStack.translatesAutoresizingMaskIntoConstraints=NO;[self.loadingContainer addSubview:loadingStack];
     [NSLayoutConstraint activateConstraints:@[[loadingStack.centerXAnchor constraintEqualToAnchor:self.loadingContainer.centerXAnchor],[loadingStack.centerYAnchor constraintEqualToAnchor:self.loadingContainer.centerYAnchor],[loadingStack.widthAnchor constraintEqualToAnchor:self.loadingContainer.widthAnchor constant:-48],[self.loadingLabel.widthAnchor constraintEqualToAnchor:loadingStack.widthAnchor]]];
     self.footerLabel=[UILabel new];self.footerLabel.numberOfLines=0;self.footerLabel.textColor=UIColor.secondaryLabelColor;self.footerLabel.font=[UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
+    if(SAPRetrineStyleLoaded()){if(SAPStyleSubtitleFont())self.footerLabel.font=SAPStyleSubtitleFont();if(SAPStyleGrey())self.footerLabel.textColor=SAPStyleGrey();}
     self.footerContainer=[UIView new];[self.footerContainer addSubview:self.footerLabel];
     [self.navigationController setToolbarHidden:NO animated:NO];
     UIBarButtonItem *back=[[UIBarButtonItem alloc]initWithImage:[UIImage systemImageNamed:@"xmark"] style:UIBarButtonItemStylePlain target:self action:@selector(close)];
@@ -305,6 +307,7 @@ static void SAPAfterDialogDismissal(UIAlertController *dialog,dispatch_block_t c
         // Preserve native text styling and layout when only progress changes.
         NSDirectionalEdgeInsets margins=content.directionalLayoutMargins;margins.trailing+=52;content.directionalLayoutMargins=margins;
         content.text=release[@"name"];content.textProperties.numberOfLines=0;content.secondaryTextProperties.numberOfLines=0;
+        SAPApplyRetrineRowText(content);
         UIFont *font=content.secondaryTextProperties.font?:[UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
         UIFontDescriptor *digits=[font.fontDescriptor fontDescriptorByAddingAttributes:@{UIFontDescriptorFeatureSettingsAttribute:@[@{UIFontFeatureTypeIdentifierKey:@(kNumberSpacingType),UIFontFeatureSelectorIdentifierKey:@(kMonospacedNumbersSelector)}]}];
         content.secondaryTextProperties.font=[UIFont fontWithDescriptor:digits size:font.pointSize];
@@ -314,7 +317,7 @@ static void SAPAfterDialogDismissal(UIAlertController *dialog,dispatch_block_t c
     NSString *subtitle=[release[@"year"]integerValue]?[NSString stringWithFormat:@"%@ · %@",release[@"year"],category]:category;
     NSDictionary *state=renderState;NSString *kind=state[@"state"];
     BOOL selected=[self.selectedReleaseURIs containsObject:release[@"uri"]];
-    UIView *indicator=self.selecting?SAPArtistStateIcon(selected?@"checkmark.circle.fill":@"circle",selected?UIColor.systemGreenColor:UIColor.secondaryLabelColor,selected?SAPL(@"settings.pixie.selection.selected",@"Selected"):SAPL(@"settings.pixie.selection.not_selected",@"Not selected")):[(SAPArtistReleaseCell *)cell indicatorForState:state];
+    UIView *indicator=self.selecting?SAPArtistStateIcon(selected?@"checkmark.circle.fill":@"circle",selected?SAPArtistAccent():UIColor.secondaryLabelColor,selected?SAPL(@"settings.pixie.selection.selected",@"Selected"):SAPL(@"settings.pixie.selection.not_selected",@"Not selected")):[(SAPArtistReleaseCell *)cell indicatorForState:state];
     cell.accessibilityTraits=UIAccessibilityTraitButton|(self.selecting&&selected?UIAccessibilityTraitSelected:0);
     NSString *phase=state[@"phase"];
     if([kind isEqual:@"downloaded"]) {subtitle=[subtitle stringByAppendingString:@" · Downloaded"];}

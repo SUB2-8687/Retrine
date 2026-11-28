@@ -10,10 +10,15 @@ int main(int argc, const char *argv[]) {
         [NSUserDefaults.standardUserDefaults setVolatileDomain:defaults forName:NSArgumentDomain];
         NSString *expected = @(argv[2]);
         HARNESS_CHECK([SGL(@"common.cancel", @"Cancel") isEqualToString:expected]);
-        // A preference change waits for the next process, rather than mixing languages mid-launch.
+        // A preference change is followed at once, without a new process: English is chosen, so the English comes back.
         defaults[SGKeyLanguage] = @1;
         [NSUserDefaults.standardUserDefaults setVolatileDomain:defaults forName:NSArgumentDomain];
-        HARNESS_CHECK([SGL(@"common.cancel", @"Cancel") isEqualToString:expected]);
+        HARNESS_CHECK([SGL(@"common.cancel", @"Cancel") isEqualToString:@"Cancel"]);
+        HARNESS_CHECK([SGLanguage() isEqualToString:@"en"]);
+        defaults[SGKeyLanguage] = @2;
+        [NSUserDefaults.standardUserDefaults setVolatileDomain:defaults forName:NSArgumentDomain];
+        HARNESS_CHECK([SGL(@"common.cancel", @"Cancel") isEqualToString:@"취소"]);
+        HARNESS_CHECK([SGLanguage() isEqualToString:@"ko"]);
         HARNESS_CHECK([SGL(@"harness.missing", @"English fallback") isEqualToString:@"English fallback"]);
         NSLog(@"[harness] language %@ PASS", choice);
     }

@@ -4,6 +4,27 @@
 #import <objc/runtime.h>
 #import <QuartzCore/QuartzCore.h>
 #import "ProgressAnimation.h"
+#import "RetrineStyle.h"
+
+UIColor *SAPArtistAccent(void) {
+    UIColor *accent=SAPRetrineStyleLoaded()?SAPStyleGreen():nil;
+    return accent?:UIColor.systemGreenColor;
+}
+
+void SAPApplyRetrineRowText(UIListContentConfiguration *content) {
+    if(!SAPRetrineStyleLoaded())return;
+    UIFont *title=SAPStyleTitleFont(),*subtitle=SAPStyleSubtitleFont();UIColor *grey=SAPStyleGrey();
+    if(title){content.textProperties.font=title;content.textProperties.color=UIColor.whiteColor;}
+    if(subtitle)content.secondaryTextProperties.font=subtitle;
+    if(grey)content.secondaryTextProperties.color=grey;
+}
+
+// Retrine sets its section headings in capitals, so the text is raised where it is assigned.
+@interface SAPArtistHeaderLabel : UILabel
+@end
+@implementation SAPArtistHeaderLabel
+- (void)setText:(NSString *)text {[super setText:SAPRetrineStyleLoaded()?text.uppercaseString:text];}
+@end
 
 UIImage *SAPArtistArtworkPlaceholder(void) {
     static UIImage *image;static dispatch_once_t once;dispatch_once(&once,^{
@@ -98,7 +119,7 @@ UIImageView *SAPArtistStateIcon(NSString *symbol,UIColor *color,NSString *label)
     if(![self.indicatorKind isEqual:kind]) {
         BOOL full=[kind isEqual:@"downloaded"],unknown=[kind isEqual:@"unknown"];
         self.staticIndicator.image=[UIImage systemImageNamed:full?@"checkmark.circle":unknown?@"questionmark.circle":@"arrow.down.circle"];
-        self.staticIndicator.tintColor=full?UIColor.systemGreenColor:UIColor.secondaryLabelColor;
+        self.staticIndicator.tintColor=full?SAPArtistAccent():UIColor.secondaryLabelColor;
         self.staticIndicator.accessibilityLabel=full?SAPL(@"settings.pixie.ui.downloaded",@"Downloaded"):unknown?SAPL(@"settings.pixie.ui.state_unavailable",@"Download state unavailable"):SAPL(@"settings.pixie.ui.not_downloaded",@"Not downloaded");
         self.indicatorKind=kind;
     }
@@ -141,17 +162,18 @@ UIImageView *SAPArtistStateIcon(NSString *symbol,UIColor *color,NSString *label)
 @implementation SAPArtistCategoryHeader
 - (instancetype)initWithReuseIdentifier:(NSString *)identifier {
     if((self=[super initWithReuseIdentifier:identifier])) {
-        self.categoryTitle=[UILabel new];self.categoryTitle.translatesAutoresizingMaskIntoConstraints=NO;
-        self.categoryTitle.font=[UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
-        self.categoryTitle.adjustsFontForContentSizeCategory=YES;self.categoryTitle.textColor=UIColor.secondaryLabelColor;
+        BOOL retrine=SAPRetrineStyleLoaded();
+        self.categoryTitle=[SAPArtistHeaderLabel new];self.categoryTitle.translatesAutoresizingMaskIntoConstraints=NO;
+        self.categoryTitle.font=(retrine?SAPStyleSubtitleFont():nil)?:[UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
+        self.categoryTitle.adjustsFontForContentSizeCategory=YES;self.categoryTitle.textColor=(retrine?SAPStyleGrey():nil)?:UIColor.secondaryLabelColor;
         self.categoryTitle.numberOfLines=1;
-        self.catalogProgressLabel=[UILabel new];self.catalogProgressLabel.font=[UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];self.catalogProgressLabel.textColor=UIColor.secondaryLabelColor;self.catalogProgressLabel.adjustsFontSizeToFitWidth=YES;self.catalogProgressLabel.minimumScaleFactor=.7;self.catalogProgressLabel.hidden=YES;
+        self.catalogProgressLabel=[UILabel new];self.catalogProgressLabel.font=(retrine?SAPStyleSubtitleFont():nil)?:[UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];self.catalogProgressLabel.textColor=(retrine?SAPStyleGrey():nil)?:UIColor.secondaryLabelColor;self.catalogProgressLabel.adjustsFontSizeToFitWidth=YES;self.catalogProgressLabel.minimumScaleFactor=.7;self.catalogProgressLabel.hidden=YES;
         UIStackView *titles=[[UIStackView alloc]initWithArrangedSubviews:@[self.categoryTitle,self.catalogProgressLabel]];titles.axis=UILayoutConstraintAxisHorizontal;titles.alignment=UIStackViewAlignmentCenter;titles.spacing=8;titles.translatesAutoresizingMaskIntoConstraints=NO;
         self.selectionButton=[UIButton buttonWithType:UIButtonTypeCustom];self.selectionButton.translatesAutoresizingMaskIntoConstraints=NO;
         UIImageSymbolConfiguration *selectionSymbol=[UIImageSymbolConfiguration configurationWithPointSize:17.0*1.2 weight:UIImageSymbolWeightRegular];
         [self.selectionButton setImage:[UIImage systemImageNamed:@"circle" withConfiguration:selectionSymbol] forState:UIControlStateNormal];
         [self.selectionButton setImage:[UIImage systemImageNamed:@"checkmark.circle.fill" withConfiguration:selectionSymbol] forState:UIControlStateSelected];
-        self.selectionButton.tintColor=UIColor.systemGreenColor;
+        self.selectionButton.tintColor=SAPArtistAccent();
         self.selectionButton.accessibilityIdentifier=@"PixieArtistCategorySelection";
         [self.contentView addSubview:titles];[self.contentView addSubview:self.selectionButton];
         UILayoutGuide *margins=self.contentView.layoutMarginsGuide;

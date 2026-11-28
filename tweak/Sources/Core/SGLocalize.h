@@ -12,11 +12,16 @@
 // (docs/tweaks.md, Localization).
 #import <Foundation/Foundation.h>
 
-// 0 or absent: System; 1: English; 2: Korean. Read once per launch.
+// 0 or absent: System; 1: English; 2: Korean. A selection is applied immediately.
 #define SGKeyLanguage @"spotifyglass.language"
 
 // The English is a format argument, so clang checks a stringWithFormat: against it.
-NSString *SGL(NSString *key, NSString *english) NS_FORMAT_ARGUMENT(2);
+// Posted on the main queue after the selected localization tables have been reloaded.
+FOUNDATION_EXPORT NSNotificationName const SGLanguageDidChangeNotification;
 
-// The language the mod's screens are in this launch: an .lproj of the bundle's, or "en".
+NSString *SGL(NSString *key, NSString *english) NS_FORMAT_ARGUMENT(2);
+// Stores a language selection and reloads the translation tables. Returns NO when the selection was already active.
+BOOL SGSetLanguageChoice(NSInteger choice);
+
+// The language the mod's screens currently use: an .lproj of the bundle's, or "en".
 NSString *SGLanguage(void);

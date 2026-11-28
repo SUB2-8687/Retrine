@@ -349,16 +349,36 @@ void SGLyricsPageLines(NSArray<SGKaraokeLine *> *lines, NSArray<NSNumber *> **st
 
 #pragma mark - which sources there are, and in what order
 
+// The name and the subtitle of every source, by its key. They are read when a provider is asked for, not once,
+// so a language change shows in them without a restart.
+static NSDictionary<NSString *, NSArray<NSString *> *> *providerTexts(void) {
+    return @{
+        @"binilyrics": @[@"BiniLyrics", SGL(@"settings.lyricssources.binilyrics.subtitle", @"Apple Music word timing")],
+        @"lyricsplus": @[@"LyricsPlus", SGL(@"settings.lyricssources.lyricsplus.subtitle", @"Word and line timing, multiple catalogs")],
+        @"musixmatch": @[@"Musixmatch", SGL(@"settings.lyricssources.musixmatch.subtitle", @"Spotify's licensed catalog")],
+        @"unison": @[@"Unison", SGL(@"settings.lyricssources.unison.subtitle", @"Hand-timed, few tracks")],
+        @"netease": @[@"NetEase", SGL(@"settings.lyricssources.netease.subtitle", @"Word timing, censored")],
+        @"lrclib": @[@"LRCLIB", SGL(@"settings.lyricssources.lrclib.subtitle", @"Line timing, open fallback")],
+        @"bugs": @[@"Bugs", SGL(@"settings.lyricssources.bugs.subtitle", @"Line timing, Korean catalog")],
+        @"genie": @[@"Genie", SGL(@"settings.lyricssources.genie.subtitle", @"Line timing, Korean catalog")],
+        @"petitlyrics": @[@"PetitLyrics", SGL(@"settings.lyricssources.petitlyrics.subtitle", @"Word and line timing, Japanese catalog")],
+        SGSpicyLyricsKey: @[@"Spicy Lyrics", SGL(@"settings.lyricssources.spicylyrics.subtitle", @"Community word syncs, your own key")],
+        @"qqmusic": @[@"QQ Music", SGL(@"settings.lyricssources.qqmusic.subtitle", @"Line timing, Chinese catalog")],
+        @"kugou": @[@"KuGou", SGL(@"settings.lyricssources.kugou.subtitle", @"Word timing, Chinese catalog")],
+        @"deezer": @[@"Deezer", SGL(@"settings.lyricssources.deezer.subtitle", @"Word and line timing, your own ARL")],
+        SGImportedLRCKey: @[SGL(@"settings.lyricssources.importedlrc.title", @"Imported lyrics"), SGL(@"settings.lyricssources.importedlrc.subtitle", @"Your own LRC, TTML or text files")],
+        @"genius": @[@"Genius", SGL(@"settings.lyricssources.genius.subtitle", @"Untimed, when no other has lyrics")],
+    };
+}
+
 NSArray<SGLyricsProvider *> *SGLyricsAllProviders(void) {
     static NSArray<SGLyricsProvider *> *all;
+    static NSString *textLanguage;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        SGLyricsProvider *(^make)(NSString *, NSString *, NSString *, SGLyricsAsk) =
-        ^(NSString *key, NSString *name, NSString *detail, SGLyricsAsk ask) {
+        SGLyricsProvider *(^make)(NSString *, SGLyricsAsk) = ^(NSString *key, SGLyricsAsk ask) {
             SGLyricsProvider *provider = [SGLyricsProvider new];
             provider.key = key;
-            provider.name = name;
-            provider.detail = detail;
             // A source that matches by Spotify's own track id has everything it needs from the
             // start; the rest wait for the player to name the track before they can search.
             provider.needsName = ![key isEqualToString:@"musixmatch"] && ![key isEqualToString:SGSpicyLyricsKey];
@@ -367,23 +387,36 @@ NSArray<SGLyricsProvider *> *SGLyricsAllProviders(void) {
             return provider;
         };
         all = @[
-            make(@"binilyrics", @"BiniLyrics", SGL(@"settings.lyricssources.binilyrics.subtitle", @"Apple Music word timing"), SGBiniLyricsAsk),
-            make(@"lyricsplus", @"LyricsPlus", SGL(@"settings.lyricssources.lyricsplus.subtitle", @"Word and line timing, multiple catalogs"), SGLyricsPlusAsk),
-            make(@"musixmatch", @"Musixmatch", SGL(@"settings.lyricssources.musixmatch.subtitle", @"Spotify's licensed catalog"), SGMusixmatchAsk),
-            make(@"unison", @"Unison", SGL(@"settings.lyricssources.unison.subtitle", @"Hand-timed, few tracks"), SGUnisonAsk),
-            make(@"netease", @"NetEase", SGL(@"settings.lyricssources.netease.subtitle", @"Word timing, censored"), SGNetEaseAsk),
-            make(@"lrclib", @"LRCLIB", SGL(@"settings.lyricssources.lrclib.subtitle", @"Line timing, open fallback"), SGLrcLibAsk),
-            make(@"bugs", @"Bugs", SGL(@"settings.lyricssources.bugs.subtitle", @"Line timing, Korean catalog"), SGBugsAsk),
-            make(@"genie", @"Genie", SGL(@"settings.lyricssources.genie.subtitle", @"Line timing, Korean catalog"), SGGenieAsk),
-            make(@"petitlyrics", @"PetitLyrics", SGL(@"settings.lyricssources.petitlyrics.subtitle", @"Word and line timing, Japanese catalog"), SGPetitLyricsAsk),
-            make(SGSpicyLyricsKey, @"Spicy Lyrics", SGL(@"settings.lyricssources.spicylyrics.subtitle", @"Community word syncs, your own key"), SGSpicyLyricsAsk),
-            make(@"qqmusic", @"QQ Music", SGL(@"settings.lyricssources.qqmusic.subtitle", @"Line timing, Chinese catalog"), SGQQMusicAsk),
-            make(@"kugou", @"KuGou", SGL(@"settings.lyricssources.kugou.subtitle", @"Word timing, Chinese catalog"), SGKuGouAsk),
-            make(@"deezer", @"Deezer", SGL(@"settings.lyricssources.deezer.subtitle", @"Word and line timing, your own ARL"), SGDeezerAsk),
-            make(SGImportedLRCKey, SGL(@"settings.lyricssources.importedlrc.title", @"Imported lyrics"), SGL(@"settings.lyricssources.importedlrc.subtitle", @"Your own LRC, TTML or text files"), SGImportedLRCAsk),
-            make(@"genius", @"Genius", SGL(@"settings.lyricssources.genius.subtitle", @"Untimed, when no other has lyrics"), SGGeniusAsk),
+            make(@"binilyrics", SGBiniLyricsAsk),
+            make(@"lyricsplus", SGLyricsPlusAsk),
+            make(@"musixmatch", SGMusixmatchAsk),
+            make(@"unison", SGUnisonAsk),
+            make(@"netease", SGNetEaseAsk),
+            make(@"lrclib", SGLrcLibAsk),
+            make(@"bugs", SGBugsAsk),
+            make(@"genie", SGGenieAsk),
+            make(@"petitlyrics", SGPetitLyricsAsk),
+            make(SGSpicyLyricsKey, SGSpicyLyricsAsk),
+            make(@"qqmusic", SGQQMusicAsk),
+            make(@"kugou", SGKuGouAsk),
+            make(@"deezer", SGDeezerAsk),
+            make(SGImportedLRCKey, SGImportedLRCAsk),
+            make(@"genius", SGGeniusAsk),
         ];
     });
+    // The providers are the same objects for good (they are compared and kept by identity); their words are set
+    // again whenever the language is not the one they were set in.
+    NSString *language = SGLanguage();
+    if (![language isEqualToString:textLanguage]) {
+        NSDictionary<NSString *, NSArray<NSString *> *> *texts = providerTexts();
+        for (SGLyricsProvider *provider in all) {
+            NSArray<NSString *> *text = texts[provider.key];
+            if (!text) continue;
+            provider.name = text[0];
+            provider.detail = text[1];
+        }
+        textLanguage = language;
+    }
     return all;
 }
 

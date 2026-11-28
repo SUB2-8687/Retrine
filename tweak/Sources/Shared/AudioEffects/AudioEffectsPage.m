@@ -615,13 +615,13 @@ static NSString *numberText(SGDSPRow *row, double value) {
         return;
     }
     if (path.section == 0 && path.row > 0) {
-        [self.navigationController pushViewController:self.sg_searchPageRows[path.row-1].page() animated:YES];
+        SGPushPageBuilt(self.navigationController, self.sg_searchPageRows[path.row-1].page);
         return;
     }
     SGDSPRow *row = [self rowAt:path];
     if (!row) return;
-    if (row.kind == SGDSPRowChoice) [self.navigationController pushViewController:[[SGDSPChoicePage alloc] initWithRow:row] animated:YES];
-    else if (row.kind == SGDSPRowPage) [self.navigationController pushViewController:row.page() animated:YES];
+    if (row.kind == SGDSPRowChoice) SGPushPageBuilt(self.navigationController, ^UIViewController *{ return [[SGDSPChoicePage alloc] initWithRow:row]; });
+    else if (row.kind == SGDSPRowPage) SGPushPageBuilt(self.navigationController, row.page);
 }
 
 - (BOOL)tableView:(UITableView *)table shouldHighlightRowAtIndexPath:(NSIndexPath *)path {

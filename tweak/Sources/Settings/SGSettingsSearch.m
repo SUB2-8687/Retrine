@@ -224,6 +224,7 @@ static char kSearchKey;
     // A row whose place says nothing (its page or the row has no name) opens all the same, it is just not remembered.
     [_index rememberPlace:hit.place];
     UIViewController *page = hit.open ? hit.open() : nil;
+    if (page && hit.open) SGSetPageRebuild(page, hit.open);
     if (!page) {
         // A row of the searched page itself: the results go, and the row is shown where it is.
         UISearchController *search = objc_getAssociatedObject(owner, &kSearchKey);

@@ -1,4 +1,5 @@
 #import "Localization.h"
+#import "RetrineStyle.h"
 #import "NativeAdmission.h"
 #import "TargetProfile.h"
 #import "DownloadCompatibility.h"
@@ -116,7 +117,38 @@ static UIImage *SAPSettingsIcon(NSString *symbol,UIColor *color,UITraitCollectio
     }];
     [cache setObject:result forKey:key];return result;
 }
+// A row drawn as Retrine's pages draw theirs: 13pt title over an 11pt gray subtitle, the symbol on a tile,
+// a white chevron, on a card. Nil while Retrine's style is not loaded, and the caller draws its own.
+static UITableViewCell *SAPRetrineSettingsCell(UITableView *table,NSString *title,NSString *subtitle,NSString *symbol,UIColor *color,BOOL chevron) {
+    if(!SAPRetrineStyleLoaded())return nil;
+    UITableViewCell *cell=[table dequeueReusableCellWithIdentifier:@"SAPRetrineRow"]
+        ?:[[UITableViewCell alloc]initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"SAPRetrineRow"];
+    if(!SAPStyleFillCell(cell,title,subtitle))return nil;
+    UIListContentConfiguration *content=(UIListContentConfiguration *)cell.contentConfiguration;
+    content.textProperties.numberOfLines=0;content.secondaryTextProperties.numberOfLines=0;
+    UIImage *tile=SAPStyleTile(symbol,color);
+    content.image=tile;content.imageProperties.reservedLayoutSize=tile?tile.size:CGSizeZero;
+    content.imageToTextPadding=tile?13:0;
+    cell.contentConfiguration=content;
+    cell.separatorInset=UIEdgeInsetsMake(0,tile?SAPStyleTileInset():16,0,0);
+    cell.accessoryType=UITableViewCellAccessoryNone;
+    cell.accessoryView=chevron?SAPStyleChevron():nil;
+    // A read-only mode row may be reused for any action after reloadData.
+    cell.userInteractionEnabled=YES;cell.selectionStyle=UITableViewCellSelectionStyleDefault;
+    cell.accessibilityLabel=title;
+    return cell;
+}
+
+// Retrine's switch: the accent where the page's own tint would be the system green.
+static UISwitch *SAPRetrineSwitch(UISwitch *toggle) {
+    UIColor *accent=SAPRetrineStyleLoaded()?SAPStyleGreen():nil;
+    if(accent)toggle.onTintColor=accent;
+    return toggle;
+}
+
 static UITableViewCell *SAPSettingsCell(UITableView *table,NSString *title,NSString *subtitle,NSString *symbol,UIColor *color,BOOL chevron) {
+    UITableViewCell *styled=SAPRetrineSettingsCell(table,title,subtitle,symbol,color,chevron);
+    if(styled)return styled;
     UITableViewCell *cell=[table dequeueReusableCellWithIdentifier:@"SAPSettingsRow"];
     if(!cell){cell=[[UITableViewCell alloc]initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"SAPSettingsRow"];
         [cell.contentView.heightAnchor constraintGreaterThanOrEqualToConstant:64].active=YES;}
@@ -147,8 +179,10 @@ static UITableViewCell *SAPSettingsCell(UITableView *table,NSString *title,NSStr
 - (instancetype)init {return [super initWithStyle:UITableViewStyleInsetGrouped];}
 - (void)viewDidLoad {
     [super viewDidLoad];self.overrideUserInterfaceStyle=UIUserInterfaceStyleDark;
-    self.tableView.backgroundColor=UIColor.blackColor;self.tableView.rowHeight=UITableViewAutomaticDimension;
-    self.tableView.estimatedRowHeight=70;self.tableView.separatorInset=UIEdgeInsetsMake(0,64,0,20);
+    BOOL retrine=SAPRetrineStyleLoaded();
+    self.tableView.backgroundColor=retrine?SAPStylePage():UIColor.blackColor;self.tableView.rowHeight=UITableViewAutomaticDimension;
+    self.tableView.estimatedRowHeight=retrine?44:70;
+    self.tableView.separatorInset=retrine?UIEdgeInsetsMake(0,SAPStyleTileInset(),0,0):UIEdgeInsetsMake(0,64,0,20);
     self.bottomChrome=[SAPBottomChrome new];
     self.baseBottom=self.appliedBottom=self.tableView.contentInset.bottom;
     self.navigationItem.rightBarButtonItem=[[UIBarButtonItem alloc]initWithImage:[UIImage systemImageNamed:@"arrow.clockwise"] style:UIBarButtonItemStylePlain target:self action:@selector(refresh)];
@@ -184,6 +218,30 @@ static UITableViewCell *SAPSettingsCell(UITableView *table,NSString *title,NSStr
         header.textLabel.font=[UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];header.textLabel.textColor=UIColor.secondaryLabelColor;
     }
 }
+// Retrine's uppercase 11pt headings and notes, and its gap over a section without one.
+- (NSString *)sectionTitle:(UITableView *)table section:(NSInteger)section {
+    return [self respondsToSelector:@selector(tableView:titleForHeaderInSection:)]?[self tableView:table titleForHeaderInSection:section]:nil;
+}
+- (NSString *)sectionNote:(UITableView *)table section:(NSInteger)section {
+    return [self respondsToSelector:@selector(tableView:titleForFooterInSection:)]?[self tableView:table titleForFooterInSection:section]:nil;
+}
+- (UIView *)tableView:(UITableView *)table viewForHeaderInSection:(NSInteger)section {
+    NSString *title=[self sectionTitle:table section:section];
+    return SAPRetrineStyleLoaded()&&title.length?SAPStyleHeader(table,title):nil;
+}
+- (CGFloat)tableView:(UITableView *)table heightForHeaderInSection:(NSInteger)section {
+    if(!SAPRetrineStyleLoaded())return UITableViewAutomaticDimension;
+    return [self sectionTitle:table section:section].length?SAPStyleHeaderHeight():SAPStyleSectionGap();
+}
+- (UIView *)tableView:(UITableView *)table viewForFooterInSection:(NSInteger)section {
+    NSString *note=[self sectionNote:table section:section];
+    return SAPRetrineStyleLoaded()&&note.length?SAPStyleFooter(table,note):nil;
+}
+- (CGFloat)tableView:(UITableView *)table heightForFooterInSection:(NSInteger)section {
+    if(!SAPRetrineStyleLoaded())return UITableViewAutomaticDimension;
+    NSString *note=[self sectionNote:table section:section];
+    return note.length?SAPStyleFooterHeight(table,note):CGFLOAT_MIN;
+}
 @end
 
 static NSString *SAPObservedValue(id value) {
@@ -193,6 +251,14 @@ static NSString *SAPObservedValue(id value) {
 }
 static UITableViewCell *SAPPlainSettingsCell(NSString *label,NSString *value) {
     UITableViewCell *cell=[[UITableViewCell alloc]initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:nil];
+    if(SAPRetrineStyleLoaded()) {
+        cell.textLabel.text=label;cell.textLabel.numberOfLines=0;cell.textLabel.font=SAPStyleTitleFont();cell.textLabel.textColor=UIColor.whiteColor;
+        cell.detailTextLabel.text=value;cell.detailTextLabel.numberOfLines=0;cell.detailTextLabel.font=SAPStyleTitleFont();
+        cell.detailTextLabel.textColor=SAPStyleGrey();
+        cell.backgroundColor=SAPStyleCard();cell.selectionStyle=UITableViewCellSelectionStyleNone;
+        cell.separatorInset=UIEdgeInsetsMake(0,16,0,0);
+        return cell;
+    }
     cell.textLabel.text=label;cell.textLabel.numberOfLines=0;
     cell.textLabel.font=[UIFont preferredFontForTextStyle:UIFontTextStyleBody];
     cell.detailTextLabel.text=value;cell.detailTextLabel.numberOfLines=0;
@@ -205,7 +271,7 @@ static UITableViewCell *SAPPlainSettingsCell(NSString *label,NSString *value) {
 @property(nonatomic) NSUInteger detailsGeneration;
 @end
 @implementation SAPDetailsSettings
-- (void)viewDidLoad {[super viewDidLoad];self.title=SAPL(@"settings.pixie.diagnostics.audio",@"Audio diagnostics");self.tableView.separatorInset=UIEdgeInsetsMake(0,20,0,20);}
+- (void)viewDidLoad {[super viewDidLoad];self.title=SAPL(@"settings.pixie.diagnostics.audio",@"Audio diagnostics");self.tableView.separatorInset=SAPRetrineStyleLoaded()?UIEdgeInsetsMake(0,16,0,0):UIEdgeInsetsMake(0,20,0,20);}
 - (void)refresh {
     NSUInteger expected=++self.detailsGeneration;__weak typeof(self) weak=self;
     [SAPSettingsActions loadDetails:NO completion:^(NSDictionary *value){
@@ -415,9 +481,12 @@ static UITableViewCell *SAPPlainSettingsCell(NSString *label,NSString *value) {
         UIButton *button=[UIButton buttonWithType:UIButtonTypeSystem];
         UIButtonConfiguration *configuration=[UIButtonConfiguration plainButtonConfiguration];
         configuration.title=SAPL(@"settings.pixie.quality.offer",@"Downloads are set to Normal; switch to High in Spotify settings.");
-        configuration.baseForegroundColor=UIColor.systemGreenColor;
+        // Retrine's 11pt note type and accent, as its own notes are set.
+        BOOL retrine=SAPRetrineStyleLoaded();
+        UIFont *noteFont=retrine?SAPStyleSubtitleFont():[UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
+        configuration.baseForegroundColor=retrine?SAPStyleGreen():UIColor.systemGreenColor;
         configuration.contentInsets=NSDirectionalEdgeInsetsMake(12,0,12,0);
-        configuration.titleTextAttributesTransformer=^NSDictionary *(NSDictionary *attributes){NSMutableDictionary *result=attributes.mutableCopy;result[NSFontAttributeName]=[UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];return result;};
+        configuration.titleTextAttributesTransformer=^NSDictionary *(NSDictionary *attributes){NSMutableDictionary *result=attributes.mutableCopy;result[NSFontAttributeName]=noteFont;return result;};
         button.configuration=configuration;button.contentHorizontalAlignment=UIControlContentHorizontalAlignmentLeading;
         button.titleLabel.numberOfLines=0;button.titleLabel.adjustsFontForContentSizeCategory=YES;
         [button addTarget:self action:@selector(qualityOfferTapped) forControlEvents:UIControlEventTouchUpInside];
@@ -465,7 +534,7 @@ static UITableViewCell *SAPPlainSettingsCell(NSString *label,NSString *value) {
         NSInteger likeRow=[self.snapshot[@"download_active"]boolValue]?3:2;
         if(index.row==likeRow) {
             UITableViewCell *cell=SAPSettingsCell(table,SAPL(@"settings.pixie.auto_like.title",@"Add single-track downloads to Liked Songs"),nil,@"heart.fill",UIColor.systemGreenColor,NO);
-            UISwitch *toggle=[UISwitch new];toggle.on=SAPAutoLikeDownloadsEnabled();
+            UISwitch *toggle=SAPRetrineSwitch([UISwitch new]);toggle.on=SAPAutoLikeDownloadsEnabled();
             [toggle addTarget:self action:@selector(autoLikeChanged:) forControlEvents:UIControlEventValueChanged];
             cell.accessoryView=toggle;cell.selectionStyle=UITableViewCellSelectionStyleNone;return cell;
         }
@@ -485,9 +554,13 @@ static UITableViewCell *SAPPlainSettingsCell(NSString *label,NSString *value) {
             (last && last.integerValue>=0?[NSString stringWithFormat:SAPL(@"settings.pixie.row.request_mode.last_selector_format",@"Last selector returned %@ · authorization unconfirmed"),last]:SAPL(@"settings.pixie.row.request_mode.no_invocation",@"No selector invocation observed this launch"));
         symbol=@"arrow.triangle.2.circlepath";color=UIColor.systemOrangeColor;chevron=YES;
         UITableViewCell *cell=SAPSettingsCell(table,title,subtitle,symbol,color,chevron);
-        UILabel *status=[UILabel new];status.font=[UIFont monospacedDigitSystemFontOfSize:17 weight:UIFontWeightBold];
+        UILabel *status=[UILabel new];
+        // Retrine's 13pt row-value type, as its own pages set a trailing value; the large bold digit otherwise.
+        UIFont *valueFont=SAPRetrineStyleLoaded()?SAPStyleTitleFont():nil;
+        status.font=valueFont?:[UIFont monospacedDigitSystemFontOfSize:17 weight:UIFontWeightBold];
         status.text=configured<0?@"?":configured==0?@"0":@"1";
-        status.textColor=configured==0?UIColor.systemGreenColor:configured==1?UIColor.systemRedColor:UIColor.secondaryLabelColor;
+        UIColor *good=(SAPRetrineStyleLoaded()?SAPStyleGreen():nil)?:UIColor.systemGreenColor;
+        status.textColor=configured==0?good:configured==1?UIColor.systemRedColor:UIColor.secondaryLabelColor;
         [status sizeToFit];cell.accessoryView=status;
         BOOL restore=[mode[@"restore_zero_supported"]boolValue];
         cell.selectionStyle=restore?UITableViewCellSelectionStyleDefault:UITableViewCellSelectionStyleNone;
@@ -496,7 +569,7 @@ static UITableViewCell *SAPPlainSettingsCell(NSString *label,NSString *value) {
     }else if(index.section==2) {
         if(index.row==1)return SAPSettingsCell(table,SAPL(@"settings.pixie.library.title",@"Downloaded tracks"),SAPL(@"settings.pixie.library.browse",@"Browse Spotify offline music"),@"music.note.list",UIColor.systemGreenColor,YES);
         UITableViewCell *cell=SAPSettingsCell(table,SAPL(@"settings.pixie.export.ogg",@"Use Ogg format"),nil,@"waveform",UIColor.systemBlueColor,NO);
-        UISwitch *toggle=[UISwitch new];toggle.on=[SAPAudioExportFormat()isEqual:@"ogg"];toggle.accessibilityLabel=SAPL(@"settings.pixie.export.ogg",@"Use Ogg format");
+        UISwitch *toggle=SAPRetrineSwitch([UISwitch new]);toggle.on=[SAPAudioExportFormat()isEqual:@"ogg"];toggle.accessibilityLabel=SAPL(@"settings.pixie.export.ogg",@"Use Ogg format");
         [toggle addTarget:self action:@selector(oggFormatChanged:) forControlEvents:UIControlEventValueChanged];cell.accessoryView=toggle;
         cell.selectionStyle=UITableViewCellSelectionStyleNone;return cell;
     }else if(index.section==4) {
@@ -511,7 +584,7 @@ static UITableViewCell *SAPPlainSettingsCell(NSString *label,NSString *value) {
     }
     UITableViewCell *cell=SAPSettingsCell(table,title,subtitle,symbol,color,chevron);
     if(index.section==3 && index.row==0) {
-        UISwitch *toggle=[UISwitch new];toggle.on=SAPDiagnosticsEnabled();
+        UISwitch *toggle=SAPRetrineSwitch([UISwitch new]);toggle.on=SAPDiagnosticsEnabled();
         toggle.accessibilityLabel=SAPL(@"settings.pixie.header.diagnostics",@"Diagnostics");toggle.accessibilityIdentifier=@"SpotifyDiagnosticsSwitch";
         [toggle addTarget:self action:@selector(diagnosticsChanged:) forControlEvents:UIControlEventValueChanged];cell.accessoryView=toggle;
     }

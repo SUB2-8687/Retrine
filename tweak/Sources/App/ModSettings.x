@@ -353,12 +353,12 @@ static UIViewController *settingsListIn(UIViewController *page, Class kind) {
     }
     UIViewController *presenting = self.drawer ? owner.presentingViewController : nil;
     if (!presenting) {
-        SGShowPage(owner, modSettingsPage());
+        SGShowPageBuilt(owner, ^UIViewController *{ return modSettingsPage(); });
         return;
     }
     [presenting dismissViewControllerAnimated:YES completion:^{
         UINavigationController *nav = (UINavigationController *)settingsListIn(presenting, UINavigationController.class);
-        SGShowPage(nav.topViewController ?: presenting, modSettingsPage());
+        SGShowPageBuilt(nav.topViewController ?: presenting, ^UIViewController *{ return modSettingsPage(); });
     }];
 }
 
@@ -373,7 +373,7 @@ void SGOpenModSettings(UIView *source) {
     UINavigationController *nav = nil;
     for (UIViewController *page = owner; page && !nav; page = page.parentViewController)
         nav = (UINavigationController *)settingsListIn(page, UINavigationController.class);
-    SGShowPage(nav.topViewController ?: SGTopController(), modSettingsPage());
+    SGShowPageBuilt(nav.topViewController ?: SGTopController(), ^UIViewController *{ return modSettingsPage(); });
 }
 
 // At the end of the settings list, or above the first row of the drawer's, with the inset for it

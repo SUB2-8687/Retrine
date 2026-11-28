@@ -1,6 +1,7 @@
 #import "SGPage.h"
 #import "SGPageStyle.h"
 #import "Core/SGCore.h"
+#import <objc/runtime.h>
 #import "../../../NativeDownloads/src/UI/PixiePageNavigation.h"
 
 
@@ -88,6 +89,57 @@
 
 void SGRegisterPages(void) {
     if (!SAPSpotifyPageContract(SGPage.class, YES)) SGLog(@"SPTPageController unavailable or incompatible; presenting mod pages");
+}
+
+static const void *kRebuildKey = &kRebuildKey;
+
+void SGSetPageRebuild(UIViewController *page, UIViewController *(^rebuild)(void)) {
+    objc_setAssociatedObject(page, kRebuildKey, rebuild, OBJC_ASSOCIATION_COPY_NONATOMIC);
+}
+
+void SGShowPageBuilt(UIViewController *owner, UIViewController *(^build)(void)) {
+    UIViewController *page = build();
+    SGSetPageRebuild(page, build);
+    SGShowPage(owner, page);
+}
+
+void SGPushPageBuilt(UINavigationController *navigation, UIViewController *(^build)(void)) {
+    UIViewController *page = build();
+    SGSetPageRebuild(page, build);
+    if (!page || !navigation) return;
+    // As SGShowPage does: a stack that cannot take the page gets it presented on a stack of its own.
+    if (SAPCanPushPage(navigation, page)) [navigation pushViewController:page animated:YES];
+    else {
+        UINavigationController *nav = SAPFallbackPageStack(page);
+        SGPresentDark(nav);
+        [navigation presentViewController:nav animated:YES completion:nil];
+    }
+}
+
+void SGRebuildPagesForLanguage(UINavigationController *navigation) {
+    if (!navigation) return;
+    NSMutableArray<UIViewController *> *pages = [navigation.viewControllers mutableCopy];
+    BOOL replaced = NO;
+    for (NSUInteger i = 0; i < pages.count; i++) {
+        UIViewController *old = pages[i];
+        UIViewController *(^rebuild)(void) = objc_getAssociatedObject(old, kRebuildKey);
+        // A page that already re-reads its words when the language changes keeps what the person typed into it.
+        if (!rebuild || [old respondsToSelector:@selector(languageDidChange:)]) continue;
+        UIViewController *fresh = rebuild();
+        if (!fresh) continue;
+        SGSetPageRebuild(fresh, rebuild);
+        CGPoint offset = CGPointZero;
+        BOOL keepsOffset = [old isKindOfClass:UITableViewController.class] && old.isViewLoaded;
+        if (keepsOffset) offset = ((UITableViewController *)old).tableView.contentOffset;
+        pages[i] = fresh;
+        replaced = YES;
+        if (keepsOffset && [fresh isKindOfClass:UITableViewController.class]) {
+            UITableView *table = ((UITableViewController *)fresh).tableView;
+            CGPoint kept = offset;
+            dispatch_async(dispatch_get_main_queue(), ^{ [table setContentOffset:kept animated:NO]; });
+        }
+    }
+    if (replaced) [navigation setViewControllers:pages animated:NO];
 }
 
 void SGShowPage(UIViewController *owner, UIViewController *page) {

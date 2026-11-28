@@ -187,7 +187,8 @@ UIViewController *SGRLyricsTextLookPage(SGRLyricsText text) {
 - (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)path {
     [table deselectRowAtIndexPath:path animated:YES];
     // Pushed onto this page's own stack, as SGModPage pushes the pages its rows open.
-    [self.navigationController pushViewController:SGRLyricsTextLookPage(_order[(NSUInteger)path.row].integerValue) animated:YES];
+    NSInteger look = _order[(NSUInteger)path.row].integerValue;
+    SGPushPageBuilt(self.navigationController, ^UIViewController *{ return SGRLyricsTextLookPage(look); });
 }
 
 - (BOOL)tableView:(UITableView *)table canMoveRowAtIndexPath:(NSIndexPath *)path {

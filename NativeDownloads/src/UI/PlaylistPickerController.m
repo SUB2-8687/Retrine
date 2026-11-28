@@ -1,6 +1,7 @@
 #import "PlaylistPickerController.h"
 #import "Localization.h"
 #import "ArtistDownloadComponents.h"
+#import "RetrineStyle.h"
 #import "ArtistArtworkLoader.h"
 #import "PlaylistDownloads.h"
 #import <objc/runtime.h>
@@ -17,11 +18,12 @@
 @implementation SAPPlaylistPickerController
 - (instancetype)init {return [super initWithStyle:UITableViewStyleInsetGrouped];}
 - (void)viewDidLoad {
-    [super viewDidLoad];self.title=SAPL(@"settings.pixie.playlist.existing",@"Existing playlist");self.knownCovers=[NSCache new];self.knownCovers.countLimit=64;self.knownCovers.totalCostLimit=4*1024*1024;self.artworkCells=[NSHashTable weakObjectsHashTable];self.overrideUserInterfaceStyle=UIUserInterfaceStyleDark;self.tableView.backgroundColor=UIColor.blackColor;
+    [super viewDidLoad];self.title=SAPL(@"settings.pixie.playlist.existing",@"Existing playlist");self.knownCovers=[NSCache new];self.knownCovers.countLimit=64;self.knownCovers.totalCostLimit=4*1024*1024;self.artworkCells=[NSHashTable weakObjectsHashTable];self.overrideUserInterfaceStyle=UIUserInterfaceStyleDark;self.tableView.backgroundColor=(SAPRetrineStyleLoaded()?SAPStylePage():nil)?:UIColor.blackColor;
     self.tableView.rowHeight=UITableViewAutomaticDimension;self.tableView.estimatedRowHeight=76;
     self.search=[[UISearchController alloc]initWithSearchResultsController:nil];self.search.searchResultsUpdater=self;self.search.obscuresBackgroundDuringPresentation=NO;self.search.searchBar.placeholder=SAPL(@"settings.pixie.playlist.search",@"Search playlists");self.navigationItem.searchController=self.search;self.definesPresentationContext=YES;
     self.navigationItem.rightBarButtonItem=[[UIBarButtonItem alloc]initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh target:self action:@selector(loadPlaylists)];
     self.statusLabel=[UILabel new];self.statusLabel.numberOfLines=0;self.statusLabel.textAlignment=NSTextAlignmentCenter;self.statusLabel.textColor=UIColor.secondaryLabelColor;
+    if(SAPRetrineStyleLoaded()){if(SAPStyleTitleFont())self.statusLabel.font=SAPStyleTitleFont();if(SAPStyleGrey())self.statusLabel.textColor=SAPStyleGrey();}
     [self loadPlaylists];
 }
 - (void)viewWillAppear:(BOOL)animated {[super viewWillAppear:animated];[self.navigationController setToolbarHidden:YES animated:animated];}
@@ -44,7 +46,10 @@
     [self.artworkCells addObject:cell];NSDictionary *playlist=self.filtered[path.row];NSString *uri=playlist[@"uri"],*imageURI=[playlist[@"cover_uri"]length]?playlist[@"cover_uri"]:playlist[@"cover_url"];
     NSString *identity=imageURI.length?[NSString stringWithFormat:@"%@|%@|%lu",uri,imageURI,(unsigned long)self.generation]:uri;BOOL same=[objc_getAssociatedObject(cell,&SAPArtistArtworkURLKey)isEqual:identity];
     UIImage *known=[self.knownCovers objectForKey:uri];if(!same)[cell cancelArtworkLoad];objc_setAssociatedObject(cell,&SAPArtistArtworkURLKey,identity,OBJC_ASSOCIATION_COPY_NONATOMIC);
-    UIListContentConfiguration *old=(id)cell.contentConfiguration,*content=[UIListContentConfiguration subtitleCellConfiguration];content.text=playlist[@"name"];content.secondaryText=playlist[@"track_count"]?[NSString stringWithFormat:SAPL(@"settings.pixie.playlist.track_count",@"%@ tracks"),playlist[@"track_count"]]:SAPL(@"settings.pixie.category.playlist",@"Playlist");content.image=known?:same?old.image:SAPArtistArtworkPlaceholder();content.imageProperties.maximumSize=CGSizeMake(52,52);content.imageProperties.reservedLayoutSize=CGSizeMake(52,52);content.imageProperties.cornerRadius=8;cell.contentConfiguration=content;cell.accessoryType=UITableViewCellAccessoryDisclosureIndicator;
+    UIListContentConfiguration *old=(id)cell.contentConfiguration,*content=[UIListContentConfiguration subtitleCellConfiguration];content.text=playlist[@"name"];content.secondaryText=playlist[@"track_count"]?[NSString stringWithFormat:SAPL(@"settings.pixie.playlist.track_count",@"%@ tracks"),playlist[@"track_count"]]:SAPL(@"settings.pixie.category.playlist",@"Playlist");content.image=known?:same?old.image:SAPArtistArtworkPlaceholder();content.imageProperties.maximumSize=CGSizeMake(52,52);content.imageProperties.reservedLayoutSize=CGSizeMake(52,52);content.imageProperties.cornerRadius=8;SAPApplyRetrineRowText(content);cell.contentConfiguration=content;
+    // A card row with Retrine's white chevron, the way its own pages open one; the system disclosure otherwise.
+    if(SAPRetrineStyleLoaded()){cell.backgroundColor=SAPStyleCard();cell.accessoryType=UITableViewCellAccessoryNone;cell.accessoryView=SAPStyleChevron();}
+    else{cell.accessoryView=nil;cell.accessoryType=UITableViewCellAccessoryDisclosureIndicator;}
     if(!same && imageURI.length){__weak SAPArtistReleaseCell *weakCell=cell;__weak typeof(self) weak=self;cell.cancelArtwork=[[SAPArtistArtworkLoader shared]loadPlaylistURI:imageURI completion:^(UIImage *image){typeof(self) page=weak;SAPArtistReleaseCell *current=weakCell;if(!page || !current || ![objc_getAssociatedObject(current,&SAPArtistArtworkURLKey)isEqual:identity])return;current.cancelArtwork=nil;if(image){[page.knownCovers setObject:image forKey:uri cost:(NSUInteger)(image.size.width*image.scale)*(NSUInteger)(image.size.height*image.scale)*4];UIListContentConfiguration *updated=(id)current.contentConfiguration;updated.image=image;current.contentConfiguration=updated;}}];}
     return cell;
 }
