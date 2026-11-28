@@ -63,8 +63,10 @@ int main(void) {
         SGHarnessBeginTimerCapture();
         Method search = class_getInstanceMethod(NSNetServiceBrowser.class, @selector(searchForServicesOfType:inDomain:));
         Method stop = class_getInstanceMethod(NSNetServiceBrowser.class, @selector(stop));
+        Method resolve = class_getInstanceMethod(NSNetService.class, @selector(resolveWithTimeout:));
         IMP oldSearch = method_setImplementation(search, imp_implementationWithBlock(^(id object, NSString *type, NSString *domain) { searches++; }));
         IMP oldStop = method_setImplementation(stop, imp_implementationWithBlock(^(id object) { stops++; }));
+        IMP oldResolve = method_setImplementation(resolve, imp_implementationWithBlock(^(id object, NSTimeInterval timeout) {}));
         SGConnectBrowser *browser = [SGConnectBrowser new];
         [browser start];
         HARNESS_CHECK(searches == 1);
@@ -115,11 +117,65 @@ int main(void) {
         [browser background];
         [browser foreground];
         HARNESS_CHECK(searches == 6);
+        // Repeated non-policy browse failures double up to kLastBrowseRetry instead of looping every 3 s.
+        NSDictionary *transient = @{NSNetServicesErrorCode: @(NSNetServicesUnknownError)};
+        NSTimeInterval (^triggerFail)(void) = ^NSTimeInterval {
+            NSNetServiceBrowser *active = [browser valueForKey:@"browser"];
+            HARNESS_CHECK(active != nil);
+            NSDate *start = NSDate.date;
+            [browser netServiceBrowser:active didNotSearch:transient];
+            HARNESS_CHECK(SGHarnessLiveTimers() == 1);
+            NSTimer *retry = sg_testTimers.lastObject;
+            HARNESS_CHECK(retry.valid);
+            return [retry.fireDate timeIntervalSinceDate:start];
+        };
+        const NSTimeInterval expectedDelays[] = {3, 6, 12, 24, 48, 60, 60};
+        for (size_t i = 0; i < sizeof(expectedDelays) / sizeof(expectedDelays[0]); i++) {
+            NSTimeInterval delay = triggerFail();
+            HARNESS_CHECK(fabs(delay - expectedDelays[i]) < 0.5);
+            NSUInteger before = searches;
+            [sg_testTimers.lastObject fire];
+            HARNESS_CHECK(SGHarnessLiveTimers() == 0 && searches == before + 1);
+        }
+        // Finding a service resets the backoff to kBrowseRetry.
+        NSNetService *found = [[NSNetService alloc] initWithDomain:@"local." type:@"_spotify-connect._tcp." name:@"speaker"];
+        [browser netServiceBrowser:[browser valueForKey:@"browser"] didFindService:found moreComing:NO];
+        HARNESS_CHECK(fabs(triggerFail() - 3) < 0.5);
+        [sg_testTimers.lastObject fire];
+        HARNESS_CHECK(fabs(triggerFail() - 6) < 0.5);
+        // A network path change cancels a pending backoff timer and retries immediately from 3 s.
+        NSUInteger beforePath = searches;
+        [browser pathChanged];
+        HARNESS_CHECK(SGHarnessLiveTimers() == 0 && searches == beforePath + 1);
+        HARNESS_CHECK(fabs(triggerFail() - 3) < 0.5);
+        [sg_testTimers.lastObject fire];
+        HARNESS_CHECK(fabs(triggerFail() - 6) < 0.5);
+        // Opening the device picker during backoff retries immediately and resets the delay.
+        NSUInteger beforePicker = searches;
+        pickerVisible(first, YES);
+        HARNESS_CHECK(SGHarnessLiveTimers() == 0 && searches == beforePicker + 1);
+        pickerVisible(first, NO);
+        HARNESS_CHECK(fabs(triggerFail() - 3) < 0.5);
+        // Background remote playback backs off too, and returning to local playback cancels and resets it.
+        manager.local = NO;
+        [manager report];
+        drainLocation();
         [browser background];
+        [sg_testTimers.lastObject fire];
+        HARNESS_CHECK(fabs(triggerFail() - 6) < 0.5);
+        manager.local = YES;
+        [manager report];
+        drainLocation();
+        HARNESS_CHECK(SGHarnessLiveTimers() == 0);
+        [browser foreground];
+        HARNESS_CHECK(fabs(triggerFail() - 3) < 0.5);
+        [browser background];
+        HARNESS_CHECK(SGHarnessLiveTimers() == 0);
         method_setImplementation(search, oldSearch);
         method_setImplementation(stop, oldStop);
+        method_setImplementation(resolve, oldResolve);
         [NSNotificationCenter.defaultCenter removeObserver:token];
         SGHarnessEndTimerCapture();
-        puts("PASS Connect background, initial remote attachment, deduplicated main-thread location changes, picker and denial lifecycle");
+        puts("PASS Connect background, initial remote attachment, deduplicated main-thread location changes, picker, denial and browse backoff lifecycle");
     }
 }

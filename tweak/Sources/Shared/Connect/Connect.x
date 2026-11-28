@@ -12,8 +12,8 @@
 #import "Connect.h"
 
 // A resolve that fails or finds nothing to send to is tried again kFirstRetry later, doubling up to
-// kLastRetry; a browse that fails starts again after kBrowseRetry.
-static const NSTimeInterval kResolveTimeout = 5, kFirstRetry = 2, kLastRetry = 30, kBrowseRetry = 3;
+// kLastRetry; a browse that fails starts again after kBrowseRetry, doubling up to kLastBrowseRetry.
+static const NSTimeInterval kResolveTimeout = 5, kFirstRetry = 2, kLastRetry = 30, kBrowseRetry = 3, kLastBrowseRetry = 60;
 static NSHashTable *sg_pickers;
 static NSNotificationName const SGConnectPickerDemandChanged = @"SGConnectPickerDemandChanged";
 
@@ -79,6 +79,7 @@ static NSData *queryAddress(NSData *data) {
     NSUInteger _generation;
     nw_path_monitor_t _path;
     NSTimer *_browseRetry;
+    NSTimeInterval _browseDelay;
 }
 
 - (void)start {
@@ -87,7 +88,7 @@ static NSData *queryAddress(NSData *data) {
     [center addObserver:self selector:@selector(background) name:UIApplicationDidEnterBackgroundNotification object:nil];
     [center addObserver:self selector:@selector(foreground) name:UIApplicationDidBecomeActiveNotification object:nil];
     [center addObserver:self selector:@selector(update) name:SGPlayerPlaybackLocationDidChangeNotification object:nil];
-    [center addObserver:self selector:@selector(update) name:SGConnectPickerDemandChanged object:nil];
+    [center addObserver:self selector:@selector(pickerChanged) name:SGConnectPickerDemandChanged object:nil];
     SGAddPlayerStateObserver(self);
     _path = nw_path_monitor_create();
     nw_path_monitor_set_queue(_path, dispatch_get_main_queue());
@@ -101,7 +102,23 @@ static NSData *queryAddress(NSData *data) {
 
 - (void)background { _foreground = NO; [self update]; }
 - (void)foreground { _foreground = YES; [self pathChanged]; }
-- (void)pathChanged { _denied = NO; [self update]; }
+- (void)pathChanged {
+    _denied = NO;
+    _browseDelay = 0;
+    if (_browseRetry) {
+        [_browseRetry invalidate];
+        _browseRetry = nil;
+    }
+    [self update];
+}
+- (void)pickerChanged {
+    if (sg_pickers.allObjects.count != 0 && _browseRetry) {
+        _browseDelay = 0;
+        [_browseRetry invalidate];
+        _browseRetry = nil;
+    }
+    [self update];
+}
 - (void)playerStateDidChange:(SPTPlayerState *)state { [self update]; }
 - (BOOL)needed { return _foreground || SGPlayerPlaybackIsRemote() || sg_pickers.allObjects.count != 0; }
 - (void)stop {
@@ -116,7 +133,7 @@ static NSData *queryAddress(NSData *data) {
 - (void)update {
     BOOL active = [self needed] && !_denied;
     SGConnectSetDiscoveryActive(active);
-    if (!active) { [self stop]; return; }
+    if (!active) { _browseDelay = 0; [self stop]; return; }
     if (!_browser && !_browseRetry) [self browse];
 }
 - (void)browse {
@@ -137,6 +154,8 @@ static NSData *queryAddress(NSData *data) {
 }
 
 - (void)netServiceBrowser:(NSNetServiceBrowser *)browser didFindService:(NSNetService *)service moreComing:(BOOL)moreComing {
+    if (browser != _browser) return;
+    _browseDelay = 0;
     if (_services[service.name] == service) return;
     [self forget:service.name];
     _services[service.name] = service;
@@ -154,9 +173,12 @@ static NSData *queryAddress(NSData *data) {
     _denied = code == kDNSServiceErr_PolicyDenied || code == NSNetServicesMissingRequiredConfigurationError;
     [self stop];
     if (_denied || ![self needed]) { [self update]; return; }
-    SGLog(@"connect: Bonjour browse failed (%@), again in %.0f s", error[NSNetServicesErrorCode], kBrowseRetry);
+    BOOL capped = _browseDelay >= kLastBrowseRetry;
+    NSTimeInterval delay = _browseDelay > 0 ? MIN(_browseDelay * 2, kLastBrowseRetry) : kBrowseRetry;
+    _browseDelay = delay;
+    if (!capped) SGLog(@"connect: Bonjour browse failed (%@), again in %.0f s", error[NSNetServicesErrorCode], delay);
     __weak SGConnectBrowser *weakSelf = self;
-    _browseRetry = [NSTimer scheduledTimerWithTimeInterval:kBrowseRetry repeats:NO block:^(NSTimer *timer) {
+    _browseRetry = [NSTimer scheduledTimerWithTimeInterval:delay repeats:NO block:^(NSTimer *timer) {
         SGConnectBrowser *browser = weakSelf;
         if (!browser) return;
         browser->_browseRetry = nil;
